@@ -43,6 +43,9 @@ next-env.d.ts
 
 # database
 /data/
+home.db
+*.db-shm
+*.db-wal
 
 # env local (keep template but not secrets)
 .env.local

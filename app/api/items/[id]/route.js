@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import getDb from '@/lib/db';
+import { getDb, row } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function PATCH(request, { params }) {
@@ -8,24 +8,20 @@ export async function PATCH(request, { params }) {
 
   const { id } = await params;
   const body = await request.json();
-  const db = getDb();
+  const db = await getDb();
 
-  // Toggle bought status
   if ('bought' in body) {
     const bought = body.bought ? 1 : 0;
-    db.prepare(`
-      UPDATE items SET
-        bought = ?,
-        bought_by_name = ?,
-        bought_at = ?
-      WHERE id = ?
-    `).run(bought, bought ? session.displayName : null, bought ? new Date().toISOString() : null, id);
+    await db.execute({
+      sql: 'UPDATE items SET bought = ?, bought_by_name = ?, bought_at = ? WHERE id = ?',
+      args: [bought, bought ? session.displayName : null, bought ? new Date().toISOString() : null, id],
+    });
   }
 
-  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
-  if (!item) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+  const itemResult = await db.execute({ sql: 'SELECT * FROM items WHERE id = ?', args: [id] });
+  if (!itemResult.rows[0]) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
-  return NextResponse.json(item);
+  return NextResponse.json(row(itemResult.rows[0]));
 }
 
 export async function DELETE(request, { params }) {
@@ -33,8 +29,8 @@ export async function DELETE(request, { params }) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const { id } = await params;
-  const db = getDb();
-  db.prepare('DELETE FROM items WHERE id = ?').run(id);
+  const db = await getDb();
+  await db.execute({ sql: 'DELETE FROM items WHERE id = ?', args: [id] });
 
   return NextResponse.json({ ok: true });
 }
